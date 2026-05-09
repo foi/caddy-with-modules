@@ -1,0 +1,103 @@
+name: Build Caddy with modules
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Install xcaddy
+        run: go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+
+      - name: Get Caddy version from tag
+        id: caddy_version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Caddy
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          xcaddy build ${{ steps.caddy_version.outputs.tag }} \
+            --with github.com/caddyserver/forwardproxy \
+            --output caddy_${{ matrix.goos }}_${{ matrix.goarch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: caddy_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: caddy_${{ matrix.goos }}_${{ matrix.goarch }}
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Compute SHA256 checksums
+        working-directory: dist
+        run: |
+          find . -type f -name 'caddy_*' | sort | while read f; do
+            sha256sum "$f"
+          done > ../checksums.txt
+          cat ../checksums.txt
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Caddy ${{ github.ref_name }} with modules
+          body: |
+            ## Caddy ${{ github.ref_name }} — custom build
+
+            Built with [xcaddy](https://github.com/caddyserver/xcaddy) and the following extra module:
+
+            | Module | Branch |
+            |--------|--------|
+            | `github.com/caddyserver/forwardproxy` | `master` |
+
+            ### Assets
+            | File | Platform |
+            |------|----------|
+            | `caddy_linux_amd64` | Linux x86-64 |
+            | `caddy_linux_arm64` | Linux ARM64 |
+
+            ### Verify integrity
+            ```
+            sha256sum -c checksums.txt
+            ```
+          files: |
+            dist/caddy_linux_amd64/caddy_linux_amd64
+            dist/caddy_linux_arm64/caddy_linux_arm64
+            checksums.txt
+          draft: false
+          prerelease: false
