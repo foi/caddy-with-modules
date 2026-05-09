@@ -1,2 +1,4 @@
 # caddy-with-modules
-my caddy with modules
+
+modules list:
+* forwardproxy
