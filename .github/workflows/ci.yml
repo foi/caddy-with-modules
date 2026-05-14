@@ -43,6 +43,7 @@ jobs:
         run: |
           xcaddy build ${{ steps.caddy_version.outputs.tag }} \
             --with github.com/caddyserver/forwardproxy \
+            --with github.com/caddy-dns/cloudflare \
             --output caddy_${{ matrix.goos }}_${{ matrix.goarch }}
 
       - name: Upload artifact
@@ -84,6 +85,7 @@ jobs:
             | Module | Branch |
             |--------|--------|
             | `github.com/caddyserver/forwardproxy` | `master` |
+            | `github.com/caddy-dns/cloudflare` | `master` |
 
             ### Assets
             | File | Platform |

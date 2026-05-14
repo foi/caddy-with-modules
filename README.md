@@ -2,3 +2,4 @@
 
 modules list:
 * forwardproxy
+* github.com/caddy-dns/cloudflare
